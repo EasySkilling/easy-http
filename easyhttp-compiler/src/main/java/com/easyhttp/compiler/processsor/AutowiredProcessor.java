@@ -2,26 +2,37 @@ package com.easyhttp.compiler.processsor;
 
 import com.easyhttp.core.annotations.Api;
 import com.easyhttp.core.annotations.Autowired;
-import com.easyhttp.core.annotations.Test;
+import com.easyhttp.core.manager.ApiProvider;
 import com.easyhttp.core.utils.GenerateRules;
 import com.google.auto.service.AutoService;
-import com.squareup.javapoet.*;
+import com.squareup.javapoet.AnnotationSpec;
+import com.squareup.javapoet.CodeBlock;
+import com.squareup.javapoet.FieldSpec;
+import com.squareup.javapoet.JavaFile;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterSpec;
+import com.squareup.javapoet.TypeName;
+import com.squareup.javapoet.TypeSpec;
+
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.aspectj.lang.reflect.FieldSignature;
 
-import javax.annotation.processing.*;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.Set;
+
+import javax.annotation.processing.Processor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.util.Set;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -168,6 +179,8 @@ public class AutowiredProcessor extends AbsProcessor {
                                 "$L.setAccessible(true)",
                                 fieldParam
                         )
+
+                        .addStatement("$T.add($L,$L)", ApiProvider.class, fieldClazzConstName, instanceParam) //添加到全局服务池
 
                         .addStatement(
                                 "$L.set($L, $L)",

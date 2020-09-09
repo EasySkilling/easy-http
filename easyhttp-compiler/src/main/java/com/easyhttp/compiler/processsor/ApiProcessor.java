@@ -4,25 +4,27 @@ import com.easyhttp.compiler.entity.AnnotationSpecWrapper;
 import com.easyhttp.compiler.entity.ParamAttrsBox;
 import com.easyhttp.compiler.utils.AnnotationUtils;
 import com.easyhttp.compiler.utils.ParamsAttrsUtils;
+import com.easyhttp.compiler.utils.TipsUtils;
 import com.easyhttp.core.Call;
-import com.easyhttp.core.entity.ExecuteParams;
 import com.easyhttp.core.HttpExecutor;
 import com.easyhttp.core.annotations.Api;
 import com.easyhttp.core.annotations.methods.Delete;
+import com.easyhttp.core.annotations.methods.Get;
 import com.easyhttp.core.annotations.methods.Patch;
 import com.easyhttp.core.annotations.methods.Post;
 import com.easyhttp.core.annotations.methods.Put;
 import com.easyhttp.core.annotations.params.BodyField;
 import com.easyhttp.core.annotations.params.BodyMap;
-import com.easyhttp.core.annotations.methods.Get;
 import com.easyhttp.core.annotations.params.UrlField;
 import com.easyhttp.core.annotations.params.UrlMap;
 import com.easyhttp.core.annotations.paths.PathField;
+import com.easyhttp.core.entity.ExecuteParams;
 import com.easyhttp.core.enums.BodyForm;
 import com.easyhttp.core.enums.SupportAnnotation;
 import com.easyhttp.core.utils.ClazzUtils;
 import com.easyhttp.core.utils.GenerateRules;
 import com.easyhttp.core.utils.GsonParser;
+import com.easyhttp.core.utils.RegexUtils;
 import com.google.auto.service.AutoService;
 import com.google.gson.reflect.TypeToken;
 import com.squareup.javapoet.AnnotationSpec;
@@ -34,12 +36,6 @@ import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
-import javax.annotation.processing.*;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.*;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -48,6 +44,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.processing.Processor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -77,10 +89,13 @@ public class ApiProcessor extends AbsProcessor {
 
     private void generateEasyApiClass(TypeElement apiElement, String baseUrl) {
         // TODO 判断Url是否正确，这里可以使用正则判断，正则表达式怎么拼写？o(╥﹏╥)o，三蛋搞定！！！！
-        // 这里先简单判断是否为空
-        if (baseUrl == null || baseUrl.equals("")) {
-            printError("@Api注解上请填写正确的url地址");
+        if (!checkUrl(baseUrl)) {
+            printError(TipsUtils.UrlInvalidMsg());
         }
+        // // 这里先简单判断是否为空
+        // if (baseUrl == null || baseUrl.equals("")) {
+        //     printError("@Api注解上请填写正确的url地址");
+        // }
         // 使用Api注解节点的包路径名称
         String pkgName = elementUtils.getPackageOf(apiElement).toString();
         // 使用Api注解节点的类名称
@@ -533,4 +548,9 @@ public class ApiProcessor extends AbsProcessor {
         return list;
     }
 
+
+    private boolean checkUrl(String url) {
+        return RegexUtils.isValidUrl(url);
+
+    }
 }

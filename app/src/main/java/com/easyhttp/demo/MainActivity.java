@@ -3,15 +3,18 @@ package com.easyhttp.demo;
 import android.os.Bundle;
 import android.util.Log;
 
-import androidx.appcompat.app.AppCompatActivity;
+import com.easyhttp.core.Call;
 import com.easyhttp.core.annotations.Autowired;
 import com.easyhttp.core.entity.Error;
 import com.easyhttp.core.listener.ResultListener;
+import com.easyhttp.core.manager.ApiProvider;
 import com.easyhttp.demo.api.ApiService;
 import com.easyhttp.demo.entity.DietPlan;
 import com.easyhttp.demo.entity.Result;
 
 import java.util.List;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -40,5 +43,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "onError: " + e.getLocalizedMessage());
             }
         });
+
+        Call<Result<List<DietPlan>>> resultCall = ApiProvider.getApi(ApiService.class).dietPlans("1297442491489964034");
     }
 }
