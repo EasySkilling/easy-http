@@ -1,0 +1,5 @@
+rootProject.name='EasyHttp'
+include ':app'
+include ':easyhttp-compiler'
+include ':easyhttp-core'
+include ':plugin'
