@@ -2,12 +2,14 @@ package com.easyhttp.demo;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 
 import com.easyhttp.core.Call;
 import com.easyhttp.core.entity.Error;
 import com.easyhttp.core.listener.ResultListener;
 import com.easyhttp.core.manager.ApiProvider;
 import com.easyhttp.demo.api.ApiService;
+import com.easyhttp.demo.consts.DomainConst;
 import com.easyhttp.demo.entity.DietPlan;
 import com.easyhttp.demo.entity.Result;
 
@@ -24,14 +26,32 @@ public class MainActivity extends AppCompatActivity {
     @Autowired(singleton = false)
     private ApiService apiService;
 
+    private String domainEnvName = DomainConst.ENV_DEV;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        browseBaiDu();
+        findViewById(R.id.switchDomainBtna).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (DomainConst.ENV_DEV.equals(domainEnvName)) {
+                    domainEnvName = DomainConst.ENV_PRO;
+                } else {
+                    domainEnvName = DomainConst.ENV_DEV;
+                }
+                apiService.switchDomain(domainEnvName);
+            }
+        });
+        findViewById(R.id.callBtn).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                callApi();
+            }
+        });
     }
 
-    private void browseBaiDu() {
+    private void callApi() {
         apiService.dietPlans("1297442491489964034").async(new ResultListener<Result<List<DietPlan>>>() {
             @Override
             public void onSuccess(Result<List<DietPlan>> data) {
@@ -43,7 +63,5 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "onError: " + e.getLocalizedMessage());
             }
         });
-
-        Call<Result<List<DietPlan>>> resultCall = ApiProvider.getApi(ApiService.class).dietPlans("1297442491489964034");
     }
 }

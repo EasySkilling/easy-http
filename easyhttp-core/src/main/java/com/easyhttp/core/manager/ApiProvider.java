@@ -37,7 +37,8 @@ public class ApiProvider {
         Object obj = apis.get(clazzName);
         if (obj == null) {
             try {
-                obj = GenerateRules.createGenerateApiInstance(clazzName);
+                Class<?> clazz = Class.forName(clazzName);
+                obj = GenerateRules.createGenerateApiInstance(clazz.getSimpleName());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

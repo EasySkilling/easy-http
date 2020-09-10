@@ -31,6 +31,7 @@ public class HttpExecutor<T> {
                 pathMap,
                 urlMap
         );
+        System.out.println("execute --------- url = " + url);
         // 将传入的url参数拼接到url上
         HttpUrl.Builder urlParamsBuilder = HttpUrl.parse(url).newBuilder();
         if (urlMap != null && urlMap.size() > 0) {

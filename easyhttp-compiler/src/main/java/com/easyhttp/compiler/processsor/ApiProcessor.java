@@ -17,8 +17,10 @@ import com.easyhttp.dep.annotations.params.BodyMap;
 import com.easyhttp.dep.annotations.params.UrlField;
 import com.easyhttp.dep.annotations.params.UrlMap;
 import com.easyhttp.dep.annotations.paths.PathField;
+import com.easyhttp.dep.entity.Domain;
 import com.easyhttp.dep.enums.BodyForm;
 import com.easyhttp.compiler.enums.SupportAnnotation;
+import com.easyhttp.dep.interfaces.MultipleDomainSupport;
 import com.easyhttp.dep.utils.ClazzUtils;
 import com.easyhttp.dep.utils.GenerateRules;
 import com.easyhttp.dep.utils.GsonParser;
@@ -28,9 +30,11 @@ import com.google.gson.reflect.TypeToken;
 import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
@@ -79,17 +83,20 @@ public class ApiProcessor extends AbsProcessor {
                 if (!anInterface) {
                     printError(fullClazzName + "必须是一个interface！注解@Api只能用于interface之上！");
                 }
+                boolean supportMultipleDomain = ClazzUtils.isSubOrSameClazz(elementUtils, typeUtils, messager, apiElement.asType(), MultipleDomainSupport.class.getCanonicalName());
                 Api api = apiElement.getAnnotation(Api.class);
                 // 生成类
-                generateEasyApiClass((TypeElement)apiElement, api.baseUrl());
+                generateEasyApiClass((TypeElement)apiElement, api.baseUrl(), supportMultipleDomain);
             }
         }
     }
 
-    private void generateEasyApiClass(TypeElement apiElement, String baseUrl) {
-        // 判断Url是否正确
-        if (!checkUrl(baseUrl)) {
-            printError(TipsUtils.UrlInvalidMsg());
+    private void generateEasyApiClass(TypeElement apiElement, String baseUrl, boolean supportMultipleDomain) {
+        // 当是单域名时，判断Url是否正确
+        if (!supportMultipleDomain) {
+            if (!checkUrl(baseUrl)) {
+                printError(TipsUtils.UrlInvalidMsg());
+            }
         }
         // 使用Api注解节点的包路径名称
         String pkgName = elementUtils.getPackageOf(apiElement).toString();
@@ -100,14 +107,175 @@ public class ApiProcessor extends AbsProcessor {
         // 控制台打印
         printMsg("使用注解@Api的类：" + clazzName);
         printMsg("新生成的类：" + easyApiClazzName);
-        // 获取所有的内部成员
-        List<? extends Element> elements = apiElement.getEnclosedElements();
-        // 创建方法
-        Set<MethodSpec> methodSpecs = parseMethods(apiElement, elements, baseUrl);
-//        // 创建类
+        // 创建类
         TypeSpec.Builder clazzBuilder = TypeSpec.classBuilder(easyApiClazzName)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .addSuperinterface(apiElement.asType());
+        // 定义成员变量
+        String curDomainField = "curDomain";
+        FieldSpec.Builder curDomainFieldBuilder = FieldSpec.builder(
+                Domain.class,
+                curDomainField,
+                Modifier.PRIVATE
+        );
+        clazzBuilder.addField(curDomainFieldBuilder.build());
+        // 定义成员多域名集合和构造方法
+        String initDomainsMethodName = MultipleDomainSupport.initDomainsMethodName;
+        // 构造方法
+        MethodSpec.Builder constructBuilder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (supportMultipleDomain) {
+            ClassName domainClazz = ClassName.get(Domain.class);
+            ClassName list = ClassName.get(List.class);
+            TypeName domainListClazz = ParameterizedTypeName.get(list, domainClazz);
+            String domainListField = "domainList";
+            FieldSpec.Builder domainListFieldBuilder = FieldSpec.builder(
+                    domainListClazz,
+                    domainListField,
+                    Modifier.PRIVATE
+            );
+            clazzBuilder.addField(domainListFieldBuilder.build());
+            // 多域名无参构造方法
+            constructBuilder.addStatement(
+                                    "$L = $L()",
+                                    domainListField,
+                                    initDomainsMethodName
+                            )
+                            .addCode(
+                                    CodeBlock.builder()
+                                            .beginControlFlow(
+                                                    "if ($L == null)",
+                                                    domainListField
+                                            )
+                                            .addStatement(
+                                                    "throw new $T(\"实现了$T接口必须初始化$T<$T> $L()方法，且返回值不能为null！\")",
+                                                    RuntimeException.class,
+                                                    MultipleDomainSupport.class,
+                                                    List.class,
+                                                    Domain.class,
+                                                    initDomainsMethodName
+                                            ).endControlFlow().build()
+                            )
+                            .addCode(
+                                    CodeBlock.builder()
+                                            .beginControlFlow(
+                                                    "if ($L.size() == 0)",
+                                                    domainListField
+                                            )
+                                            .addStatement(
+                                                    "throw new $T(\"$T<$T> $L()方法返回的域名列表至少有1个可用域名！\")",
+                                                    RuntimeException.class,
+                                                    List.class,
+                                                    Domain.class,
+                                                    initDomainsMethodName
+                                            )
+                                            .endControlFlow()
+                                            .build()
+                            )
+                            .addComment("默认使用第一个值作为默认域名")
+                            .addStatement(
+                                    "$L = $L.get(0)",
+                                    curDomainField,
+                                    domainListField
+                            );
+            // 重写MultipleDomainSupport接口的方法
+            String switchDomainMethodName = MultipleDomainSupport.switchDomainMethodName;
+            String domainEnvNameParam = "domainEnvName";
+            String domainInnerField = "domain";
+            String getDomainByEnvNameMethodName = "getDomainByEnvName";
+            MethodSpec.Builder switchDomainMethodBuilder =
+                    MethodSpec.methodBuilder(switchDomainMethodName)
+                            .addModifiers(Modifier.PUBLIC)
+                            .returns(void.class)
+                            .addParameter(
+                                    ParameterSpec.builder(
+                                            String.class,
+                                            domainEnvNameParam
+                                    ).build()
+                            )
+                            .addException(RuntimeException.class)
+                            .addStatement(
+                                    "$T $L = $L($L)",
+                                    Domain.class,
+                                    domainInnerField,
+                                    getDomainByEnvNameMethodName,
+                                    domainEnvNameParam
+                            )
+                            .addCode(
+                                    CodeBlock.builder()
+                                            .beginControlFlow(
+                                                    "if ($L == null)",
+                                                    domainInnerField
+                                            )
+                                            .addStatement(
+                                                    "throw new $T(\"没有找到环境名\" + $L + \"对应的域名，请检查是否正确配置！\")",
+                                                    RuntimeException.class,
+                                                    domainEnvNameParam
+                                            )
+                                            .endControlFlow()
+                                            .build()
+                            )
+                            .addStatement(
+                                    "$L = $L",
+                                    curDomainField,
+                                    domainInnerField
+                            );
+            clazzBuilder.addMethod(switchDomainMethodBuilder.build());
+            // 从集合获取domain的方法
+            MethodSpec.Builder getDomainByEnvNameBuilder =
+                    MethodSpec.methodBuilder(getDomainByEnvNameMethodName)
+                            .addModifiers(Modifier.PRIVATE)
+                            .returns(Domain.class)
+                            .addParameter(
+                                    ParameterSpec.builder(
+                                            String.class,
+                                            domainEnvNameParam
+                                    ).build()
+                            )
+                            .addCode(
+                                    CodeBlock.builder()
+                                            .beginControlFlow(
+                                                    "for ($T $L : $L)",
+                                                    Domain.class,
+                                                    domainInnerField,
+                                                    domainListField
+                                            )
+                                            .add(
+                                                    CodeBlock.builder()
+                                                            .beginControlFlow(
+                                                                    "if ($L.getEnvName().equals($L))",
+                                                                    domainInnerField,
+                                                                    domainEnvNameParam
+                                                            )
+                                                            .addStatement(
+                                                                    "return $L",
+                                                                    domainInnerField
+                                                            )
+                                                            .endControlFlow()
+                                                            .build()
+                                            )
+                                            .endControlFlow()
+                                            .build()
+                            )
+                            .addStatement("return null");
+            clazzBuilder.addMethod(getDomainByEnvNameBuilder.build());
+        } else {
+            // 单域名无参构造方法
+            printMsg(easyApiClazzName);
+            constructBuilder.addComment("单域名")
+                            .addStatement(
+                                    "$L = new $T($L.class.getCanonicalName(), $S)",
+                                    curDomainField,
+                                    Domain.class,
+                                    easyApiClazzName,
+                                    baseUrl
+                            );
+        }
+        clazzBuilder.addMethod(constructBuilder.build());
+        // 获取所有的内部成员
+        List<? extends Element> elements = apiElement.getEnclosedElements();
+        // 创建方法
+        Set<MethodSpec> methodSpecs = parseMethods(apiElement, elements, curDomainField, supportMultipleDomain);
+
         if (!methodSpecs.isEmpty()) {
             clazzBuilder.addMethods(methodSpecs);
         }
@@ -123,15 +291,30 @@ public class ApiProcessor extends AbsProcessor {
         }
     }
 
-    private Set<MethodSpec> parseMethods(TypeElement apiElement, List<? extends Element> elements, String baseUrl) {
+    private Set<MethodSpec> parseMethods(TypeElement apiElement, List<? extends Element> elements, String curDomainField, boolean supportMultipleDomain) {
         Set<MethodSpec> set = new HashSet<>();
         // 获取所有方法
         List<ExecutableElement> executableElements = ElementFilter.methodsIn(elements);
         if (!executableElements.isEmpty()) {
             for (ExecutableElement method : executableElements) {
+                // 如果是多域名，MultipleDomainSupport.class方法直接忽略，进入下一次循环
+                boolean isMultipleDomainMethod = false;
+                if (supportMultipleDomain) {
+                    String[] methodArray = MultipleDomainSupport.getMethodArray();
+                    for (String methodName : methodArray) {
+                        if (methodName.equals(method.getSimpleName().toString())) {
+                            isMultipleDomainMethod = true;
+                            break;
+                        }
+                    }
+                }
+                if (isMultipleDomainMethod) {
+                    // 进入下一个方法循环，当前直接忽略
+                    continue;
+                }
+
                 MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getSimpleName().toString());
-                // 添加方法注解（因为是重写方法，都有overide暂时不写）
-//                builder.addAnnotation(Override.class);
+                // 添加方法注解
                 List<AnnotationSpecWrapper> methodAnnotationSpecList = getAnnotationSpecs(method.getAnnotationMirrors());
                 // 定义的方法必须包含EasyHttp的方法注解，且只能有一个，否则是无效的方法，不应该出现在生成的实现类中
                 if (!AnnotationUtils.hasOnlyOneEasyHttpAnnotation(methodAnnotationSpecList)) {
@@ -148,7 +331,7 @@ public class ApiProcessor extends AbsProcessor {
                 printMsg("方法返回类型：" + returnType.toString());
                 // 判断returnType是否是Call的子类或者Call
                 if (!ClazzUtils.isSubOrSameClazz(elementUtils, typeUtils, messager, returnType, DepApiConst.CORE_CALL_PATH)) {
-                    printError("方法" + method.getSimpleName() + "的返回值必须是" + DepApiConst.CORE_CALL_PATH + "类型或者子类型！");
+                    printError("不支持的方法" + method.getSimpleName() + "，返回值必须是" + DepApiConst.CORE_CALL_PATH + "类型或者子类型！");
                 }
                 methodBuilder.returns(TypeName.get(returnType));
                 // 添加方法参数
@@ -385,10 +568,10 @@ public class ApiProcessor extends AbsProcessor {
                 // 创建ExecuteParams对象
                 String executeParamsName = "executeParams";
                 methodBuilder.addStatement(
-                        "$T " + executeParamsName + " = new $T($S, $S, $S, $L, $T.$L)",
+                        "$T " + executeParamsName + " = new $T($L.getBaseUrl(), $S, $S, $L, $T.$L)",
                         ClassName.get(elementUtils.getTypeElement(DepApiConst.CORE_EXECUTE_PARAMS_PATH)),
                         ClassName.get(elementUtils.getTypeElement(DepApiConst.CORE_EXECUTE_PARAMS_PATH)),
-                        baseUrl,
+                        curDomainField,
                         restUrl,
                         methodAnno.getPName(),
                         urlEncode,
