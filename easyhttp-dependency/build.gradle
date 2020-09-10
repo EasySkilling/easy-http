@@ -1,0 +1,10 @@
+apply plugin: 'java-library'
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    api "com.google.code.gson:gson:2.8.6"
+    api 'org.aspectj:aspectjrt:1.9.4'
+}
+
+sourceCompatibility = "8"
+targetCompatibility = "8"
