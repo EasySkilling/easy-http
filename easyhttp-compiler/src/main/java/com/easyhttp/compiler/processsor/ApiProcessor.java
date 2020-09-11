@@ -220,6 +220,29 @@ public class ApiProcessor extends AbsProcessor {
                                     domainInnerField
                             );
             clazzBuilder.addMethod(switchDomainMethodBuilder.build());
+            //
+            String addDomainMethodName = MultipleDomainSupport.addDomainMethodName;
+            MethodSpec.Builder addDomainMethodBuilder =
+                    MethodSpec.methodBuilder(addDomainMethodName)
+                            .addModifiers(Modifier.PUBLIC)
+                            .addParameter(
+                                    ParameterSpec.builder(Domain.class, domainInnerField).build()
+                            )
+                            .addCode(
+                                    CodeBlock.builder()
+                                            .beginControlFlow(
+                                                    "if ($L != null)",
+                                                    domainInnerField
+                                            )
+                                            .addStatement(
+                                                  "$L.add($L)",
+                                                    domainListField,
+                                                    domainInnerField
+                                            )
+                                            .endControlFlow()
+                                            .build()
+                            );
+            clazzBuilder.addMethod(addDomainMethodBuilder.build());
             // 从集合获取domain的方法
             MethodSpec.Builder getDomainByEnvNameBuilder =
                     MethodSpec.methodBuilder(getDomainByEnvNameMethodName)
