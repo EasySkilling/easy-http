@@ -24,7 +24,7 @@ public interface ApiService extends MultipleDomainSupport {
     default List<Domain> initDomains() {
         List<Domain> domainList = new ArrayList<>(2);
         domainList.add(new Domain(DomainConst.ENV_DEV, "http://192.168.1.6:9010"));
-        domainList.add(new Domain(DomainConst.ENV_PRO, "http://www.threeeggs.com"));
+        domainList.add(new Domain(DomainConst.ENV_PRO, "http://www.baidu.com"));
         return domainList;
     }
 

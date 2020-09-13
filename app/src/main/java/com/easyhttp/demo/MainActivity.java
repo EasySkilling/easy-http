@@ -5,6 +5,7 @@ import android.util.Log;
 import android.view.View;
 
 import com.easyhttp.core.Call;
+import com.easyhttp.core.EasyHttp;
 import com.easyhttp.core.entity.Error;
 import com.easyhttp.core.listener.ResultListener;
 import com.easyhttp.core.manager.ApiProvider;
@@ -23,7 +24,7 @@ public class MainActivity extends AppCompatActivity {
 
     public static final String TAG = MainActivity.class.getSimpleName();
 
-    @Autowired(singleton = false)
+    @Autowired(singleton = true)
     private ApiService apiService;
 
     private String domainEnvName = DomainConst.ENV_DEV;

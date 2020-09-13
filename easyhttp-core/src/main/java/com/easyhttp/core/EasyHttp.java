@@ -1,5 +1,8 @@
 package com.easyhttp.core;
 
+import com.easyhttp.core.manager.ApiProvider;
+import com.easyhttp.dep.utils.GenerateRules;
+
 /**
  * 我未完成功能：
  * 自定义上传注解@UploadFile、@DownloadFile，与@Get，@Post方法区别使用，用于上传文件，这个稍后做。
@@ -13,5 +16,18 @@ package com.easyhttp.core;
 public class EasyHttp {
 
     public static final boolean DEBUG = true;
+
+    public static <T> T getApi(Class<T> apiClazz) {
+        T api = ApiProvider.getApi(apiClazz);
+        if (api == null) {
+            try {
+                api = (T) GenerateRules.createGenerateApiInstance(apiClazz.getSimpleName());
+                ApiProvider.add(apiClazz.getCanonicalName(), api);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return api;
+    }
 
 }

@@ -1,9 +1,7 @@
 package com.easyhttp.core.manager;
 
-import com.easyhttp.dep.utils.GenerateRules;
-
 import java.util.HashMap;
-import java.util.Objects;
+import java.util.Map;
 
 /**
  * Name: ApiServiceProvider
@@ -36,14 +34,9 @@ public class ApiProvider {
     public static <T> T getApi(String clazzName) {
         Object obj = apis.get(clazzName);
         if (obj == null) {
-            try {
-                Class<?> clazz = Class.forName(clazzName);
-                obj = GenerateRules.createGenerateApiInstance(clazz.getSimpleName());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            return null;
         }
-        return (T) Objects.requireNonNull(obj);
+        return (T) obj;
     }
 
     /**
