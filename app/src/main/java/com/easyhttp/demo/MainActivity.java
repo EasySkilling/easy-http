@@ -9,6 +9,7 @@ import com.easyhttp.core.EasyHttp;
 import com.easyhttp.core.entity.Error;
 import com.easyhttp.core.listener.ResultListener;
 import com.easyhttp.core.manager.ApiProvider;
+import com.easyhttp.core.thread.ThreadType;
 import com.easyhttp.demo.api.ApiService;
 import com.easyhttp.demo.consts.DomainConst;
 import com.easyhttp.demo.entity.DietPlan;
@@ -47,22 +48,34 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.callBtn).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                callApi();
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        callApi();
+                    }
+                }).start();
+
             }
         });
     }
 
     private void callApi() {
-        apiService.dietPlans("1297442491489964034").async(new ResultListener<Result<List<DietPlan>>>() {
-            @Override
-            public void onSuccess(Result<List<DietPlan>> data) {
-                Log.e(TAG, "onSuccess: " + data.toString());
-            }
-
-            @Override
-            public void onError(Error error, Exception e) {
-                Log.e(TAG, "onError: " + e.getLocalizedMessage());
-            }
-        });
+//        apiService.dietPlans("1297442491489964034").asyncRequest(new ResultListener<Result<List<DietPlan>>>() {
+//            @Override
+//            public void onSuccess(Result<List<DietPlan>> data) {
+//                Log.e(TAG, "onSuccess: " + data.toString());
+//            }
+//
+//            @Override
+//            public void onError(Error error, Exception e) {
+//                Log.e(TAG, "threadName = " + Thread.currentThread().getName());
+//                Log.e(TAG, "onError: " + e.getLocalizedMessage());
+//            }
+//        }, ThreadType.WORK);
+        try {
+            Result<List<DietPlan>> result = apiService.dietPlans("2222222222").syncRequest();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
