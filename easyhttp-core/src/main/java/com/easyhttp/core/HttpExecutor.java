@@ -1,18 +1,21 @@
 package com.easyhttp.core;
 
 import com.easyhttp.core.entity.ExecuteParams;
+import com.easyhttp.core.utils.CheckUtils;
+import com.easyhttp.core.utils.LogicUtils;
+import com.easyhttp.dep.enums.BodyForm;
+import com.easyhttp.dep.utils.GsonParser;
 
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.easyhttp.dep.enums.BodyForm;
-import com.easyhttp.dep.utils.GsonParser;
 import okhttp3.FormBody;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -22,8 +25,52 @@ import okhttp3.RequestBody;
 
 public class HttpExecutor<T> {
 
+    /**
+     * !openDebug就是安全的，不会抛出任何异常，从而保证不会crash，但是可能逻辑会有问题
+     */
+    private static boolean openDebug = false;
+
+    public static void setOpenDebug(boolean openDebug) {
+        HttpExecutor.openDebug = openDebug;
+    }
+
+    /**
+     * 所有请求方式的工厂
+     */
+    private HashMap<BodyForm, IRequestFactory> requestFactories = new HashMap<>();
+
+    {
+        //do Json
+        requestFactories.put(BodyForm.JSON, (params) -> {
+            String json = GsonParser.createJson(params);
+            if (CheckUtils.isEmpty(json)) {
+                if (openDebug) throw new IllegalArgumentException("");
+                    //这里最差的情况，让其不crash，即使不相应结果，也不能crash
+                else return RequestBody.create("", MediaType.parse("application/json; charset=utf-8"));
+            }
+            return RequestBody.create(json, MediaType.parse("application/json; charset=utf-8"));
+        });
+
+        //do Form
+        requestFactories.put(BodyForm.FORM, (params) -> {
+            FormBody.Builder formBuilder = new FormBody.Builder();
+            for (Map.Entry<String, Object> entry : params.entrySet()) {
+                formBuilder.add(entry.getKey(), LogicUtils.string(entry.getValue()));
+            }
+            return formBuilder.build();
+        });
+    }
+
     // 单纯的数据访问
     public Call<T> execute(ExecuteParams executeParams, Map<String, Object> pathMap, Map<String, Object> urlMap, Map<String, Object> bodyMap, Type type) {
+
+        if (executeParams == null) return null;
+
+        BodyForm bodyForm = executeParams.getBodyForm();
+
+        //check whether support the request
+        if (!checkSupport(bodyForm)) return null;
+
         String url = generateHttpUrl(
                 executeParams.getBaseUrl(),
                 executeParams.getRestUrl(),
@@ -32,47 +79,13 @@ public class HttpExecutor<T> {
                 urlMap
         );
         System.out.println("execute --------- url = " + url);
+
         // 将传入的url参数拼接到url上
-        HttpUrl.Builder urlParamsBuilder = HttpUrl.parse(url).newBuilder();
-        if (urlMap != null && urlMap.size() > 0) {
-            for (Map.Entry<String, Object> entry : urlMap.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                String valStr = value.toString();
-                if (executeParams.isUrlEncode()) {
-                    try {
-                        valStr = URLEncoder.encode(valStr, "UTF-8");
-                    } catch (UnsupportedEncodingException e) {
-                        e.printStackTrace();
-                        throw new RuntimeException("参数UrlEncode失败:" + e.getLocalizedMessage());
-                    }
-                }
-                urlParamsBuilder.addQueryParameter(key, valStr);
-            }
-        }
+        HttpUrl.Builder urlBuilder = concatUrl(url, urlMap, executeParams.isUrlEncode());
         // 创建请求构建对象
-        Request.Builder builder = new Request.Builder()
-                .url(urlParamsBuilder.build());
+        Request.Builder builder = new Request.Builder().url(urlBuilder.build());
         // 添加请求体数据
-        RequestBody requestBody = null;
-        if (bodyMap != null && bodyMap.size() > 0) {
-            // 数据提交方式
-            BodyForm bodyForm = executeParams.getBodyForm();
-            if (BodyForm.FORM == bodyForm) {
-                FormBody.Builder formBuilder = new FormBody.Builder();
-                for (Map.Entry<String, Object> entry : bodyMap.entrySet()) {
-                    formBuilder.add(entry.getKey(), entry.getValue().toString());
-                }
-                requestBody = formBuilder.build();
-            } else if (BodyForm.JSON == bodyForm) {
-                String json = GsonParser.createJson(bodyMap);
-                if (json != null) {
-                    requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), json);
-                }
-            } else {
-                throw new RuntimeException("只能支持表单数据form提交或者json对象提交！");
-            }
-        }
+        RequestBody requestBody = requestFactories.get(bodyForm).create(bodyMap);
         String httpMethod = executeParams.getHttpMethod();
         builder.method(httpMethod, requestBody);
 
@@ -170,6 +183,40 @@ public class HttpExecutor<T> {
         return result.toString();
     }
 
+    private HttpUrl.Builder concatUrl(String url, Map<String, Object> urlMap, boolean encode) {
+        HttpUrl.Builder urlParamsBuilder = HttpUrl.parse(url).newBuilder();
+        if (urlMap != null && urlMap.size() > 0) {
+            for (Map.Entry<String, Object> entry : urlMap.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                String valStr = value.toString();
+                if (encode) {
+                    try {
+                        valStr = URLEncoder.encode(valStr, "UTF-8");
+                    } catch (UnsupportedEncodingException e) {
+                        e.printStackTrace();
+                        throw new RuntimeException("参数UrlEncode失败:" + e.getLocalizedMessage());
+                    }
+                }
+                urlParamsBuilder.addQueryParameter(key, valStr);
+            }
+        }
+        return urlParamsBuilder;
+    }
 
     // 上传文件的新加方法
+
+
+    /**
+     * 检测是否支持此种请求
+     */
+    private boolean checkSupport(BodyForm form) {
+        if (requestFactories.containsKey(form)) return true;
+        if (openDebug) return false;
+        throw new RuntimeException("只能支持表单数据form提交或者json对象提交！");
+    }
+
+    interface IRequestFactory {
+        RequestBody create(Map<String, Object> params);
+    }
 }
