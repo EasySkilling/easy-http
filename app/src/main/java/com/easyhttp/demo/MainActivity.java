@@ -4,21 +4,18 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 
-import com.easyhttp.core.Call;
-import com.easyhttp.core.EasyHttp;
 import com.easyhttp.core.entity.Error;
 import com.easyhttp.core.listener.ResultListener;
-import com.easyhttp.core.manager.ApiProvider;
 import com.easyhttp.core.thread.ThreadType;
 import com.easyhttp.demo.api.ApiService;
 import com.easyhttp.demo.consts.DomainConst;
 import com.easyhttp.demo.entity.DietPlan;
 import com.easyhttp.demo.entity.Result;
+import com.easyhttp.dep.annotations.Autowired;
 
 import java.util.List;
 
 import androidx.appcompat.app.AppCompatActivity;
-import com.easyhttp.dep.annotations.Autowired;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -60,22 +57,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void callApi() {
-//        apiService.dietPlans("1297442491489964034").asyncRequest(new ResultListener<Result<List<DietPlan>>>() {
-//            @Override
-//            public void onSuccess(Result<List<DietPlan>> data) {
-//                Log.e(TAG, "onSuccess: " + data.toString());
-//            }
-//
-//            @Override
-//            public void onError(Error error, Exception e) {
-//                Log.e(TAG, "threadName = " + Thread.currentThread().getName());
-//                Log.e(TAG, "onError: " + e.getLocalizedMessage());
-//            }
-//        }, ThreadType.WORK);
-        try {
-            Result<List<DietPlan>> result = apiService.dietPlans("2222222222").syncRequest();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+       apiService.dietPlans("1297442491489964034").asyncRequest(new ResultListener<Result<List<DietPlan>>>() {
+           @Override
+           public void onSuccess(Result<List<DietPlan>> data) {
+               Log.e(TAG, "onSuccess: " + data.toString());
+           }
+
+           @Override
+           public void onError(Error error, Exception e) {
+               Log.e(TAG, "threadName = " + Thread.currentThread().getName());
+               Log.e(TAG, "onError: " + e.getLocalizedMessage());
+           }
+       }, ThreadType.WORK);
+        // try {
+        //     Result<List<DietPlan>> result = apiService.dietPlans("2222222222").syncRequest();
+        // } catch (Exception e) {
+        //     e.printStackTrace();
+        // }
     }
 }

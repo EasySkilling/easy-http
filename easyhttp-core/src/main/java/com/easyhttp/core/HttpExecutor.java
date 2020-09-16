@@ -22,6 +22,7 @@ import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
+import okhttp3.internal.http.HttpMethod;
 
 public class HttpExecutor<T> {
 
@@ -44,9 +45,7 @@ public class HttpExecutor<T> {
         requestFactories.put(BodyForm.JSON, (params) -> {
             String json = GsonParser.createJson(params);
             if (CheckUtils.isEmpty(json)) {
-                if (openDebug) throw new IllegalArgumentException("");
-                    //这里最差的情况，让其不crash，即使不相应结果，也不能crash
-                else return RequestBody.create("", MediaType.parse("application/json; charset=utf-8"));
+                return null;
             }
             return RequestBody.create(json, MediaType.parse("application/json; charset=utf-8"));
         });
@@ -54,8 +53,10 @@ public class HttpExecutor<T> {
         //do Form
         requestFactories.put(BodyForm.FORM, (params) -> {
             FormBody.Builder formBuilder = new FormBody.Builder();
-            for (Map.Entry<String, Object> entry : params.entrySet()) {
-                formBuilder.add(entry.getKey(), LogicUtils.string(entry.getValue()));
+            if (params != null) {
+                for (Map.Entry<String, Object> entry : params.entrySet()) {
+                    formBuilder.add(entry.getKey(), LogicUtils.string(entry.getValue()));
+                }
             }
             return formBuilder.build();
         });
@@ -87,7 +88,11 @@ public class HttpExecutor<T> {
         // 添加请求体数据
         RequestBody requestBody = requestFactories.get(bodyForm).create(bodyMap);
         String httpMethod = executeParams.getHttpMethod();
-        builder.method(httpMethod, requestBody);
+
+        //okhttp不允许"GET"和"HEAD"添加body
+        if (HttpMethod.permitsRequestBody(httpMethod)) {
+            builder.method(httpMethod, requestBody);
+        }
 
         return new Call<T>().setType(type).newOkHttpCall(new OkHttpClient().newCall(builder.build()));
     }
